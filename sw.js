@@ -1,4 +1,4 @@
-const CACHE_NAME = "namma-metro-eta-v1";
+const CACHE_NAME = "namma-metro-eta-v2";
 const ASSETS = [
   "./",
   "index.html",
@@ -31,13 +31,38 @@ self.addEventListener("fetch", event => {
   );
 });
 
+self.addEventListener("push", event => {
+  let payload = {};
+  if (event.data) {
+    try {
+      payload = event.data.json();
+    } catch {
+      payload = { body: event.data.text() };
+    }
+  }
+
+  const title = payload.title || "Namma Metro ETA";
+  const body = payload.body || "Time to check your metro commute.";
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: "icon.svg",
+      badge: "icon.svg",
+      tag: payload.tag || "metro-eta",
+      data: payload.url || "./"
+    })
+  );
+});
+
 self.addEventListener("notificationclick", event => {
   event.notification.close();
+  const targetUrl = event.notification.data || "./";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(clients => {
       const client = clients.find(item => "focus" in item);
       if (client) return client.focus();
-      return self.clients.openWindow("./");
+      return self.clients.openWindow(targetUrl);
     })
   );
 });

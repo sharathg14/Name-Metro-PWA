@@ -39,6 +39,12 @@ const morningRoute = [
 
 const eveningRoute = [...morningRoute].reverse();
 
+const pushConfig = {
+  // Fill these after deploying the Cloudflare Worker and generating VAPID keys.
+  workerUrl: "https://namma-metro-eta-push.sgrinfo.workers.dev",
+  vapidPublicKey: "BLmOVr6_quhClJ9fUjJ4Vb7QXY3eU7VMv5nlNVvtAkh7uzMZtRKrpJa8kcUrY8BgHZjuxqaObh87dejKmSF7iWU"
+};
+
 const state = {
   position: null,
   map: null,
@@ -88,6 +94,7 @@ function saveSettings() {
   settings.eveningTime = els.eveningTime.value || "18:00";
   settings.leadMinutes = Number(els.leadMinutes.value || 10);
   localStorage.setItem("metroEtaSettings", JSON.stringify(settings));
+  syncPushSubscription();
   scheduleReminders();
   render();
 }
@@ -248,7 +255,14 @@ function updateMapUser() {
 
 function updateNotificationState() {
   const permission = "Notification" in window ? Notification.permission : "unsupported";
-  els.notificationState.textContent = settings.notificationsEnabled ? "On" : permission === "granted" ? "Ready" : "Off";
+  const pushReady = Boolean(pushConfig.workerUrl && pushConfig.vapidPublicKey);
+  if (settings.notificationsEnabled && pushReady) {
+    els.notificationState.textContent = "Push";
+  } else if (settings.notificationsEnabled) {
+    els.notificationState.textContent = "Local";
+  } else {
+    els.notificationState.textContent = permission === "granted" ? "Ready" : "Off";
+  }
   els.notifyBtn.textContent = settings.notificationsEnabled ? "Disable" : "Enable";
 }
 
@@ -266,8 +280,50 @@ async function toggleNotifications() {
   const permission = await Notification.requestPermission();
   settings.notificationsEnabled = permission === "granted";
   saveSettings();
+  await syncPushSubscription();
   updateNotificationState();
-  if (settings.notificationsEnabled) sendCommuteNotification("Reminders enabled", "Daily commute checks are active while this PWA is running.");
+  if (settings.notificationsEnabled) {
+    const mode = pushConfig.workerUrl ? "Daily commute push is active." : "Local reminders are active while this PWA is running.";
+    sendCommuteNotification("Reminders enabled", mode);
+  }
+}
+
+function urlBase64ToUint8Array(value) {
+  const padding = "=".repeat((4 - value.length % 4) % 4);
+  const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
+}
+
+async function syncPushSubscription() {
+  if (!settings.notificationsEnabled || !pushConfig.workerUrl || !pushConfig.vapidPublicKey) return;
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  if (Notification.permission !== "granted") return;
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(pushConfig.vapidPublicKey)
+    });
+    await fetch(`${pushConfig.workerUrl.replace(/\/$/, "")}/subscribe`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        subscription,
+        settings: {
+          morningTime: settings.morningTime,
+          eveningTime: settings.eveningTime,
+          leadMinutes: settings.leadMinutes,
+          timezone: "Asia/Kolkata"
+        }
+      })
+    });
+    updateNotificationState();
+  } catch (error) {
+    console.warn("Push subscription failed", error);
+    els.notificationState.textContent = "Local";
+  }
 }
 
 function nextReminderAt(timeText, leadMinutes) {
@@ -334,6 +390,9 @@ els.refreshBtn.addEventListener("click", render);
 els.notifyBtn.addEventListener("click", toggleNotifications);
 els.testNotifyBtn.addEventListener("click", () => {
   if (Notification.permission === "granted") {
+    if (pushConfig.workerUrl) {
+      fetch(`${pushConfig.workerUrl.replace(/\/$/, "")}/test`, { method: "POST" }).catch(() => {});
+    }
     const estimate = routeEstimate(morningRoute, "banashankari");
     sendCommuteNotification("Namma Metro ETA", `Banashankari to Pattandur Agrahara: ${estimate.total} min total.`);
   } else {

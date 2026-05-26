@@ -1,0 +1,15 @@
+name = "namma-metro-eta-push"
+main = "src/worker.js"
+compatibility_date = "2025-05-27"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+VAPID_SUBJECT = "mailto:sharathg14@gmail.com"
+VAPID_PUBLIC_KEY = "BLmOVr6_quhClJ9fUjJ4Vb7QXY3eU7VMv5nlNVvtAkh7uzMZtRKrpJa8kcUrY8BgHZjuxqaObh87dejKmSF7iWU"
+APP_ORIGIN = "https://sharathg14.github.io"
+
+[[kv_namespaces]]
+binding = "SUBSCRIPTIONS"
+id = "9d2b2b5f1a6144be936280c3ff7dd067"
