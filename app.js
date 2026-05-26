@@ -77,7 +77,11 @@ const els = {
   leadMinutes: document.querySelector("#leadMinutes"),
   notifyBtn: document.querySelector("#notifyBtn"),
   testNotifyBtn: document.querySelector("#testNotifyBtn"),
-  notificationState: document.querySelector("#notificationState")
+  notificationState: document.querySelector("#notificationState"),
+  workerHealth: document.querySelector("#workerHealth"),
+  lastSync: document.querySelector("#lastSync"),
+  nextPush: document.querySelector("#nextPush"),
+  lastWorkerMessage: document.querySelector("#lastWorkerMessage")
 };
 
 function loadSettings() {
@@ -97,6 +101,11 @@ function saveSettings() {
   syncPushSubscription();
   scheduleReminders();
   render();
+}
+
+function saveLastSync() {
+  localStorage.setItem("lastPushSync", new Date().toISOString());
+  renderPushStatus();
 }
 
 function haversineKm(a, b) {
@@ -144,6 +153,18 @@ function trainMinutes(route) {
 
 function formatClock(date) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatShortDateTime(value) {
+  if (!value) return "--";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  return date.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }
 
 function routeEstimate(route, originKey) {
@@ -266,6 +287,42 @@ function updateNotificationState() {
   els.notifyBtn.textContent = settings.notificationsEnabled ? "Disable" : "Enable";
 }
 
+function updateNextPushStatus() {
+  const lead = Number(settings.leadMinutes || 10);
+  const candidates = [
+    { label: "Office", at: nextReminderAt(settings.morningTime, lead) },
+    { label: "Home", at: nextReminderAt(settings.eveningTime, lead) }
+  ].sort((a, b) => a.at - b.at);
+  els.nextPush.textContent = `${candidates[0].label} · ${formatShortDateTime(candidates[0].at)}`;
+}
+
+async function renderPushStatus() {
+  els.lastSync.textContent = formatShortDateTime(localStorage.getItem("lastPushSync"));
+  updateNextPushStatus();
+
+  if (!pushConfig.workerUrl) {
+    els.workerHealth.textContent = "Local";
+    els.lastWorkerMessage.textContent = "Worker not configured";
+    return;
+  }
+
+  try {
+    const baseUrl = pushConfig.workerUrl.replace(/\/$/, "");
+    const [healthResponse, messageResponse] = await Promise.all([
+      fetch(`${baseUrl}/health`, { cache: "no-store" }),
+      fetch(`${baseUrl}/latest-message`, { cache: "no-store" })
+    ]);
+    els.workerHealth.textContent = healthResponse.ok ? "Online" : "Error";
+    if (messageResponse.ok) {
+      const message = await messageResponse.json();
+      els.lastWorkerMessage.textContent = message.body || message.title || "--";
+    }
+  } catch {
+    els.workerHealth.textContent = "Offline";
+    els.lastWorkerMessage.textContent = "Worker unreachable";
+  }
+}
+
 async function toggleNotifications() {
   if (!("Notification" in window)) {
     els.notificationState.textContent = "Unsupported";
@@ -319,6 +376,7 @@ async function syncPushSubscription() {
         }
       })
     });
+    saveLastSync();
     updateNotificationState();
   } catch (error) {
     console.warn("Push subscription failed", error);
@@ -412,5 +470,7 @@ hydrateLastLocation();
 registerServiceWorker();
 initMap();
 render();
+renderPushStatus();
 scheduleReminders();
 setInterval(render, 60000);
+setInterval(renderPushStatus, 5 * 60000);

@@ -150,7 +150,7 @@ h2 {
 .commute-grid,
 .controls-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -237,6 +237,7 @@ dd,
   margin: 4px 0 0;
   font-size: 0.95rem;
   font-weight: 850;
+  overflow-wrap: anywhere;
 }
 
 .map-panel {

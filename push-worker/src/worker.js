@@ -6,6 +6,22 @@ const DEFAULT_SETTINGS = {
   leadMinutes: 10,
   timezone: "Asia/Kolkata"
 };
+const ROUTES = {
+  morning: {
+    title: "Office commute",
+    origin: "Banashankari",
+    destination: "Pattandur Agrahara",
+    hops: 27,
+    interchangeMinutes: 5
+  },
+  evening: {
+    title: "Home commute",
+    origin: "Pattandur Agrahara",
+    destination: "Banashankari",
+    hops: 27,
+    interchangeMinutes: 5
+  }
+};
 
 export default {
   async fetch(request, env) {
@@ -56,8 +72,8 @@ export default {
     const now = new Date(event.scheduledTime);
     const settings = { ...DEFAULT_SETTINGS, ...record.settings };
     const reminders = [
-      { label: "morning", time: settings.morningTime },
-      { label: "evening", time: settings.eveningTime }
+      { label: "morning", time: settings.morningTime, route: ROUTES.morning },
+      { label: "evening", time: settings.eveningTime, route: ROUTES.evening }
     ];
 
     for (const reminder of reminders) {
@@ -93,9 +109,10 @@ async function saveLatestMessage(env, message) {
 }
 
 function buildTestMessage() {
+  const estimate = estimateRoute("morning", new Date());
   return {
     title: "Namma Metro push test",
-    body: "Cloudflare background push is working on your iPhone.",
+    body: `Cloudflare push works. Demo ETA: ${estimate.total} min, arrival around ${estimate.arrivalText}.`,
     tag: "metro-eta-test",
     url: "./"
   };
@@ -103,15 +120,52 @@ function buildTestMessage() {
 
 function buildReminderMessage(reminder, settings) {
   const lead = Number(settings.leadMinutes || 10);
-  const isMorning = reminder.label === "morning";
+  const estimate = estimateRoute(reminder.label, new Date());
   return {
-    title: isMorning ? "Leave check: Office commute" : "Leave check: Home commute",
-    body: isMorning
-      ? `In ${lead} min, check Banashankari to Pattandur Agrahara metro ETA.`
-      : `In ${lead} min, check Pattandur Agrahara to Banashankari metro ETA.`,
+    title: `Leave check: ${reminder.route.title}`,
+    body: `In ${lead} min: ${reminder.route.origin} to ${reminder.route.destination}. ETA ${estimate.total} min, arrival around ${estimate.arrivalText}.`,
     tag: `metro-eta-${reminder.label}`,
     url: "./"
   };
+}
+
+function estimateRoute(label, nowUtc) {
+  const route = ROUTES[label] || ROUTES.morning;
+  const nowIst = new Date(nowUtc.getTime() + 5.5 * 60 * 60 * 1000);
+  const stationArrival = new Date(nowIst.getTime() + 8 * 60000);
+  const wait = waitForNextTrain(stationArrival);
+  const ride = Math.round(route.hops * 2.25 + route.interchangeMinutes);
+  const total = 8 + wait + ride;
+  const arrival = new Date(nowIst.getTime() + total * 60000);
+  return {
+    wait,
+    ride,
+    total,
+    arrivalText: formatIstClock(arrival)
+  };
+}
+
+function waitForNextTrain(dateIst) {
+  const headway = headwayMinutes(dateIst);
+  const start = new Date(dateIst);
+  start.setUTCHours(5, 0, 0, 0);
+  const elapsed = Math.max(0, (dateIst - start) / 60000);
+  const remainder = elapsed % headway;
+  return Math.ceil(remainder === 0 ? 0 : headway - remainder);
+}
+
+function headwayMinutes(dateIst) {
+  const hour = dateIst.getUTCHours() + dateIst.getUTCMinutes() / 60;
+  if (hour < 5 || hour > 23.25) return 15;
+  return (hour >= 7.5 && hour <= 10.5) || (hour >= 17 && hour <= 20.5) ? 5 : 8;
+}
+
+function formatIstClock(dateIst) {
+  return dateIst.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC"
+  });
 }
 
 async function shouldSend(env, nowUtc, reminder, leadMinutes) {
