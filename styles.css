@@ -275,7 +275,7 @@ dd,
   font-weight: 800;
 }
 
-input {
+input:not([type="checkbox"]) {
   width: 132px;
   min-height: 42px;
   border: 1px solid var(--line);
@@ -284,6 +284,12 @@ input {
   color: var(--ink);
   background: #fff;
   font-weight: 750;
+}
+
+input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+  accent-color: var(--teal);
 }
 
 .button-row {

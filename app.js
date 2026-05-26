@@ -56,6 +56,7 @@ const settings = {
   morningTime: "08:30",
   eveningTime: "18:00",
   leadMinutes: 10,
+  weekdaysOnly: true,
   notificationsEnabled: false
 };
 
@@ -75,12 +76,14 @@ const els = {
   morningTime: document.querySelector("#morningTime"),
   eveningTime: document.querySelector("#eveningTime"),
   leadMinutes: document.querySelector("#leadMinutes"),
+  weekdaysOnly: document.querySelector("#weekdaysOnly"),
   notifyBtn: document.querySelector("#notifyBtn"),
   testNotifyBtn: document.querySelector("#testNotifyBtn"),
   notificationState: document.querySelector("#notificationState"),
   workerHealth: document.querySelector("#workerHealth"),
   lastSync: document.querySelector("#lastSync"),
   nextPush: document.querySelector("#nextPush"),
+  walkingSync: document.querySelector("#walkingSync"),
   lastWorkerMessage: document.querySelector("#lastWorkerMessage")
 };
 
@@ -90,6 +93,7 @@ function loadSettings() {
   els.morningTime.value = settings.morningTime;
   els.eveningTime.value = settings.eveningTime;
   els.leadMinutes.value = settings.leadMinutes;
+  els.weekdaysOnly.checked = Boolean(settings.weekdaysOnly);
   updateNotificationState();
 }
 
@@ -97,10 +101,20 @@ function saveSettings() {
   settings.morningTime = els.morningTime.value || "08:30";
   settings.eveningTime = els.eveningTime.value || "18:00";
   settings.leadMinutes = Number(els.leadMinutes.value || 10);
+  settings.weekdaysOnly = els.weekdaysOnly.checked;
   localStorage.setItem("metroEtaSettings", JSON.stringify(settings));
   syncPushSubscription();
   scheduleReminders();
   render();
+}
+
+function walkingSettings() {
+  return {
+    morningWalk: walkingMinutes(state.position, stations.banashankari),
+    eveningWalk: walkingMinutes(state.position, stations.pattandur),
+    source: state.position ? "gps" : "default",
+    updatedAt: new Date().toISOString()
+  };
 }
 
 function saveLastSync() {
@@ -293,7 +307,9 @@ function updateNextPushStatus() {
     { label: "Office", at: nextReminderAt(settings.morningTime, lead) },
     { label: "Home", at: nextReminderAt(settings.eveningTime, lead) }
   ].sort((a, b) => a.at - b.at);
+  const walking = walkingSettings();
   els.nextPush.textContent = `${candidates[0].label} · ${formatShortDateTime(candidates[0].at)}`;
+  els.walkingSync.textContent = `${walking.morningWalk}/${walking.eveningWalk} min · ${walking.source}`;
 }
 
 async function renderPushStatus() {
@@ -372,7 +388,9 @@ async function syncPushSubscription() {
           morningTime: settings.morningTime,
           eveningTime: settings.eveningTime,
           leadMinutes: settings.leadMinutes,
-          timezone: "Asia/Kolkata"
+          weekdaysOnly: settings.weekdaysOnly,
+          timezone: "Asia/Kolkata",
+          walking: walkingSettings()
         }
       })
     });
@@ -461,7 +479,7 @@ els.testNotifyBtn.addEventListener("click", () => {
   }
 });
 
-[els.morningTime, els.eveningTime, els.leadMinutes].forEach(input => {
+[els.morningTime, els.eveningTime, els.leadMinutes, els.weekdaysOnly].forEach(input => {
   input.addEventListener("change", saveSettings);
 });
 

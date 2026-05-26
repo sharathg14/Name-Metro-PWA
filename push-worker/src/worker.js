@@ -4,6 +4,12 @@ const DEFAULT_SETTINGS = {
   morningTime: "08:30",
   eveningTime: "18:00",
   leadMinutes: 10,
+  weekdaysOnly: true,
+  walking: {
+    morningWalk: 8,
+    eveningWalk: 8,
+    source: "default"
+  },
   timezone: "Asia/Kolkata"
 };
 const ROUTES = {
@@ -71,6 +77,7 @@ export default {
 
     const now = new Date(event.scheduledTime);
     const settings = { ...DEFAULT_SETTINGS, ...record.settings };
+    if (settings.weekdaysOnly && isWeekendIst(now)) return;
     const reminders = [
       { label: "morning", time: settings.morningTime, route: ROUTES.morning },
       { label: "evening", time: settings.eveningTime, route: ROUTES.evening }
@@ -120,29 +127,43 @@ function buildTestMessage() {
 
 function buildReminderMessage(reminder, settings) {
   const lead = Number(settings.leadMinutes || 10);
-  const estimate = estimateRoute(reminder.label, new Date());
+  const estimate = estimateRoute(reminder.label, new Date(), settings);
   return {
     title: `Leave check: ${reminder.route.title}`,
-    body: `In ${lead} min: ${reminder.route.origin} to ${reminder.route.destination}. ETA ${estimate.total} min, arrival around ${estimate.arrivalText}.`,
+    body: `Leave in ${lead} min. Walk ${estimate.walk} min, train wait ${estimate.wait} min, arrival around ${estimate.arrivalText}.`,
     tag: `metro-eta-${reminder.label}`,
     url: "./"
   };
 }
 
-function estimateRoute(label, nowUtc) {
+function estimateRoute(label, nowUtc, settings = DEFAULT_SETTINGS) {
   const route = ROUTES[label] || ROUTES.morning;
   const nowIst = new Date(nowUtc.getTime() + 5.5 * 60 * 60 * 1000);
-  const stationArrival = new Date(nowIst.getTime() + 8 * 60000);
+  const walk = walkingMinutesFor(label, settings);
+  const stationArrival = new Date(nowIst.getTime() + walk * 60000);
   const wait = waitForNextTrain(stationArrival);
   const ride = Math.round(route.hops * 2.25 + route.interchangeMinutes);
-  const total = 8 + wait + ride;
+  const total = walk + wait + ride;
   const arrival = new Date(nowIst.getTime() + total * 60000);
   return {
+    walk,
     wait,
     ride,
     total,
     arrivalText: formatIstClock(arrival)
   };
+}
+
+function walkingMinutesFor(label, settings) {
+  const walking = settings.walking || DEFAULT_SETTINGS.walking;
+  const value = label === "evening" ? walking.eveningWalk : walking.morningWalk;
+  return Math.max(2, Math.min(60, Number(value || 8)));
+}
+
+function isWeekendIst(nowUtc) {
+  const nowIst = new Date(nowUtc.getTime() + 5.5 * 60 * 60 * 1000);
+  const day = nowIst.getUTCDay();
+  return day === 0 || day === 6;
 }
 
 function waitForNextTrain(dateIst) {
