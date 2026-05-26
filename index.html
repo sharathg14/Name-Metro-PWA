@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#153b3b">
+    <title>Namma Metro ETA</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icon.svg">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Personal commute tracker</p>
+          <h1>Namma Metro ETA</h1>
+        </div>
+        <button class="icon-button" id="refreshBtn" type="button" aria-label="Refresh ETA" title="Refresh ETA">
+          <span aria-hidden="true">↻</span>
+        </button>
+      </header>
+
+      <section class="status-band" aria-live="polite">
+        <div>
+          <span class="status-dot" id="gpsDot"></span>
+          <p id="locationStatus">Waiting for location</p>
+        </div>
+        <button id="locateBtn" type="button">Use GPS</button>
+      </section>
+
+      <section class="commute-grid" aria-label="Commute ETAs">
+        <article class="eta-card primary" id="morningCard">
+          <div class="card-head">
+            <div>
+              <p class="label">Morning</p>
+              <h2>Banashankari → Pattandur Agrahara</h2>
+            </div>
+            <span class="pill" id="morningMode">Schedule</span>
+          </div>
+          <div class="eta-number">
+            <span id="morningEta">--</span>
+            <small>arrival</small>
+          </div>
+          <dl class="eta-parts">
+            <div>
+              <dt>Walk</dt>
+              <dd id="morningWalk">--</dd>
+            </div>
+            <div>
+              <dt>Next train</dt>
+              <dd id="morningTrain">--</dd>
+            </div>
+            <div>
+              <dt>Total</dt>
+              <dd id="morningTotal">--</dd>
+            </div>
+          </dl>
+        </article>
+
+        <article class="eta-card" id="eveningCard">
+          <div class="card-head">
+            <div>
+              <p class="label">Evening</p>
+              <h2>Pattandur Agrahara → Banashankari</h2>
+            </div>
+            <span class="pill">Schedule</span>
+          </div>
+          <div class="eta-number">
+            <span id="eveningEta">--</span>
+            <small>arrival</small>
+          </div>
+          <dl class="eta-parts">
+            <div>
+              <dt>Walk</dt>
+              <dd id="eveningWalk">--</dd>
+            </div>
+            <div>
+              <dt>Next train</dt>
+              <dd id="eveningTrain">--</dd>
+            </div>
+            <div>
+              <dt>Total</dt>
+              <dd id="eveningTotal">--</dd>
+            </div>
+          </dl>
+        </article>
+      </section>
+
+      <section class="map-panel" aria-label="Metro route map">
+        <div id="map"></div>
+      </section>
+
+      <section class="controls-grid" aria-label="Commute settings">
+        <article class="settings-panel">
+          <div class="panel-title">
+            <h2>Reminders</h2>
+            <span id="notificationState">Off</span>
+          </div>
+          <div class="field-row">
+            <label for="morningTime">Morning</label>
+            <input id="morningTime" type="time" value="08:30">
+          </div>
+          <div class="field-row">
+            <label for="eveningTime">Evening</label>
+            <input id="eveningTime" type="time" value="18:00">
+          </div>
+          <div class="field-row">
+            <label for="leadMinutes">Lead</label>
+            <input id="leadMinutes" type="number" min="1" max="60" value="10">
+          </div>
+          <div class="button-row">
+            <button id="notifyBtn" type="button">Enable</button>
+            <button class="secondary" id="testNotifyBtn" type="button">Test</button>
+          </div>
+        </article>
+
+        <article class="settings-panel">
+          <div class="panel-title">
+            <h2>Assumptions</h2>
+            <span>Local</span>
+          </div>
+          <div class="metric-list">
+            <div>
+              <span>Data</span>
+              <strong>Schedule estimate</strong>
+            </div>
+            <div>
+              <span>Privacy</span>
+              <strong>On device</strong>
+            </div>
+            <div>
+              <span>Live feed</span>
+              <strong>Adapter ready</strong>
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
