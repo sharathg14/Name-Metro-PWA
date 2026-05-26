@@ -1,4 +1,5 @@
-const CACHE_NAME = "namma-metro-eta-v3";
+const CACHE_NAME = "namma-metro-eta-v4";
+const PUSH_WORKER_URL = "https://namma-metro-eta-push.sgrinfo.workers.dev";
 const ASSETS = [
   "./",
   "index.html",
@@ -57,19 +58,44 @@ self.addEventListener("push", event => {
     }
   }
 
-  const title = payload.title || "Namma Metro ETA";
-  const body = payload.body || "Time to check your metro commute.";
-
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      icon: "icon.svg",
-      badge: "icon.svg",
-      tag: payload.tag || "metro-eta",
-      data: payload.url || "./"
-    })
+    resolvePushPayload(payload).then(message =>
+      self.registration.showNotification(message.title, {
+        body: message.body,
+        icon: "icon.svg",
+        badge: "icon.svg",
+        tag: message.tag,
+        data: message.url
+      })
+    )
   );
 });
+
+async function resolvePushPayload(payload) {
+  if (payload.title || payload.body) {
+    return normalizePayload(payload);
+  }
+
+  try {
+    const response = await fetch(`${PUSH_WORKER_URL}/latest-message`, { cache: "no-store" });
+    if (response.ok) {
+      return normalizePayload(await response.json());
+    }
+  } catch {
+    // Fall back to a generic notification if the Worker cannot be reached.
+  }
+
+  return normalizePayload({});
+}
+
+function normalizePayload(payload) {
+  return {
+    title: payload.title || "Namma Metro ETA",
+    body: payload.body || "Time to check your metro commute.",
+    tag: payload.tag || "metro-eta",
+    url: payload.url || "./"
+  };
+}
 
 self.addEventListener("notificationclick", event => {
   event.notification.close();

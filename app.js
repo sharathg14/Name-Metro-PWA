@@ -391,7 +391,10 @@ els.notifyBtn.addEventListener("click", toggleNotifications);
 els.testNotifyBtn.addEventListener("click", () => {
   if (Notification.permission === "granted") {
     if (pushConfig.workerUrl) {
-      fetch(`${pushConfig.workerUrl.replace(/\/$/, "")}/test`, { method: "POST" }).catch(() => {});
+      fetch(`${pushConfig.workerUrl.replace(/\/$/, "")}/test`, { method: "POST" }).catch(() => {
+        sendCommuteNotification("Namma Metro ETA", "Push test could not reach Cloudflare. Check your connection and Worker deploy.");
+      });
+      return;
     }
     const estimate = routeEstimate(morningRoute, "banashankari");
     sendCommuteNotification("Namma Metro ETA", `Banashankari to Pattandur Agrahara: ${estimate.total} min total.`);

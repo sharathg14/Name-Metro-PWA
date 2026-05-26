@@ -1,4 +1,5 @@
 const SUBSCRIPTION_KEY = "primary";
+const LATEST_MESSAGE_KEY = "latest-message";
 const DEFAULT_SETTINGS = {
   morningTime: "08:30",
   eveningTime: "18:00",
@@ -15,6 +16,11 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/health") {
       return json({ ok: true }, env);
+    }
+
+    if (url.pathname === "/latest-message") {
+      const message = await loadLatestMessage(env);
+      return json(message, env);
     }
 
     if (url.pathname === "/subscribe" && request.method === "POST") {
@@ -35,6 +41,7 @@ export default {
     if (url.pathname === "/test" && request.method === "POST") {
       const record = await loadRecord(env);
       if (!record) return json({ ok: false, error: "No subscription saved" }, env, 404);
+      await saveLatestMessage(env, buildTestMessage());
       const result = await sendPush(env, record.subscription);
       return json({ ok: result.ok, status: result.status }, env, result.ok ? 200 : 502);
     }
@@ -55,6 +62,7 @@ export default {
 
     for (const reminder of reminders) {
       if (await shouldSend(env, now, reminder, settings.leadMinutes)) {
+        await saveLatestMessage(env, buildReminderMessage(reminder, settings));
         await sendPush(env, record.subscription);
       }
     }
@@ -64,6 +72,46 @@ export default {
 async function loadRecord(env) {
   const raw = await env.SUBSCRIPTIONS.get(SUBSCRIPTION_KEY);
   return raw ? JSON.parse(raw) : null;
+}
+
+async function loadLatestMessage(env) {
+  const raw = await env.SUBSCRIPTIONS.get(LATEST_MESSAGE_KEY);
+  if (raw) return JSON.parse(raw);
+  return {
+    title: "Namma Metro ETA",
+    body: "Time to check your metro commute.",
+    tag: "metro-eta",
+    url: "./"
+  };
+}
+
+async function saveLatestMessage(env, message) {
+  await env.SUBSCRIPTIONS.put(LATEST_MESSAGE_KEY, JSON.stringify({
+    ...message,
+    createdAt: new Date().toISOString()
+  }), { expirationTtl: 15 * 60 });
+}
+
+function buildTestMessage() {
+  return {
+    title: "Namma Metro push test",
+    body: "Cloudflare background push is working on your iPhone.",
+    tag: "metro-eta-test",
+    url: "./"
+  };
+}
+
+function buildReminderMessage(reminder, settings) {
+  const lead = Number(settings.leadMinutes || 10);
+  const isMorning = reminder.label === "morning";
+  return {
+    title: isMorning ? "Leave check: Office commute" : "Leave check: Home commute",
+    body: isMorning
+      ? `In ${lead} min, check Banashankari to Pattandur Agrahara metro ETA.`
+      : `In ${lead} min, check Pattandur Agrahara to Banashankari metro ETA.`,
+    tag: `metro-eta-${reminder.label}`,
+    url: "./"
+  };
 }
 
 async function shouldSend(env, nowUtc, reminder, leadMinutes) {
